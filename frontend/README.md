@@ -1,16 +1,48 @@
-# React + Vite
+# Frontend dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite UI for the Open Banking Integration Sandbox. Look up a customer aggregate from the FastAPI backend (`/aggregate/{customer_id}`).
 
-Currently, two official plugins are available:
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js + npm
+- Backend running on `http://127.0.0.1:8000` (CORS allows Vite on port 5173)
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+cd frontend
+npm install
+```
 
-## Expanding the ESLint configuration
+## Run
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm run dev
+```
+
+Open the Vite URL (usually http://127.0.0.1:5173 or http://localhost:5173).
+
+In another terminal, keep the API up:
+
+```bash
+cd backend
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+## Usage
+
+1. Enter a customer ID (`C001` or `C002`).
+2. Click **Fetch aggregate**.
+3. Review accounts, FX rates, and latency — or the error for unknown IDs (e.g. `C999`).
+
+## Lint
+
+```bash
+npm run lint
+```
+
+## Stack
+
+- React + Vite
+- ESLint
+- Calls `http://127.0.0.1:8000` from the browser

@@ -17,6 +17,7 @@ Built to demonstrate API integration, JSON/XML handling, testing, and clear tech
 
 - Python, FastAPI, SQLAlchemy, SQLite
 - pytest + FastAPI TestClient
+- React + Vite (dashboard)
 
 ## Project tracking
 
@@ -68,6 +69,18 @@ cd backend
 pytest -q
 ```
 
+## Frontend dashboard
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the Vite URL (usually http://127.0.0.1:5173). Keep the FastAPI server running on port 8000.
+
+More detail: [frontend/README.md](frontend/README.md)
+
 ## Docs
 
 - [Architecture](docs/architecture.md)
@@ -75,5 +88,5 @@ pytest -q
 
 ## Roadmap
 
-- React dashboard for aggregates and audit logs
 - JWT auth for protected routes
+- Audit log viewer in the dashboard
