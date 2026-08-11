@@ -1,121 +1,74 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
 
+const API_BASE = 'http://127.0.0.1:8000'
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [customerId, setCustomerId] = useState('C001')
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function fetchAggregate(event) {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+    setData(null)
+
+    try {
+      const response = await fetch(`${API_BASE}/aggregate/${encodeURIComponent(customerId)}`)
+      const body = await response.json()
+
+      if (!response.ok) {
+        setError(body.detail || `Request failed (${response.status})`)
+        return
+      }
+
+      setData(body)
+    } catch (err) {
+      setError('Could not reach API. Is the backend running on port 8000?')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="page">
+      <header className="header">
+        <h1>Open Banking Integration Sandbox</h1>
+        <p>Lookup a customer aggregate from mock bank JSON + FX XML sources.</p>
+      </header>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      <form className="panel" onSubmit={fetchAggregate}>
+        <label htmlFor="customerId">Customer ID</label>
+        <div className="row">
+          <input
+            id="customerId"
+            value={customerId}
+            onChange={(e) => setCustomerId(e.target.value.trim())}
+            placeholder="C001"
+          />
+          <button type="submit" disabled={loading || !customerId}>
+            {loading ? 'Loading…' : 'Fetch aggregate'}
+          </button>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </form>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {error && <div className="error">{error}</div>}
+
+      {data && (
+        <section className="panel results">
+          <h2>Result for {data.customer_id}</h2>
+          <p className="meta">Latency: {data.meta?.latency_ms} ms</p>
+
+          <h3>Accounts</h3>
+          <pre>{JSON.stringify(data.accounts, null, 2)}</pre>
+
+          <h3>FX rates</h3>
+          <pre>{JSON.stringify(data.fx_rates, null, 2)}</pre>
+        </section>
+      )}
+    </div>
   )
 }
 
