@@ -2,30 +2,43 @@
 
 ## Overview
 
-The sandbox is a single FastAPI app that exposes mock upstream systems and an aggregation endpoint. Aggregation results (and failures) are persisted to SQLite for operational visibility.
+The sandbox is a single FastAPI app that exposes mock upstream systems and an aggregation endpoint. Aggregation requires a JWT from the mock login endpoint. Aggregation results (and failures) are persisted to SQLite for operational visibility. Audit log listing remains public for the PoC dashboard.
 
 ## Component diagram
 
 ```mermaid
 flowchart LR
   Client[Client / React / curl / Swagger] --> API[FastAPI app]
+  API --> Auth[Auth / JWT]
   API --> Bank[Mock Bank JSON]
   API --> FX[Mock FX XML]
   API --> Agg[Aggregate service]
   API --> Audit[Audit logs API]
+  Agg --> Auth
   Agg --> Bank
   Agg --> FX
   Agg --> DB[(SQLite request_logs)]
   Audit --> DB
 ```
 
+## Auth flow
+
+1. Client posts `{"username":"demo","password":"demo"}` to `POST /auth/login`.
+2. Server validates demo credentials and returns `{ "access_token": "...", "token_type": "bearer" }`.
+3. Client calls `GET /aggregate/{customer_id}` with `Authorization: Bearer <token>`.
+4. `get_current_user` verifies the JWT (HS256) using `JWT_SECRET_KEY` (or the local default).
+5. Invalid / missing tokens return `401` before aggregation runs.
+
+Public (no token): `/health`, mocks, `/auth/login`, `/audit-logs`.
+
 ## Request flow: `GET /aggregate/{customer_id}`
 
-1. Client calls `/aggregate/{customer_id}`.
-2. Service looks up mock bank JSON for that customer.
-3. Service parses mock FX XML into a rate map.
-4. On success: return merged JSON (`accounts`, `fx_rates`, `meta.latency_ms`) and insert a `200` audit row.
-5. On unknown customer: insert a `404` audit row, then return `404`.
+1. Client sends Bearer JWT + customer id.
+2. Auth dependency validates the token.
+3. Service looks up mock bank JSON for that customer.
+4. Service parses mock FX XML into a rate map.
+5. On success: return merged JSON (`accounts`, `fx_rates`, `meta.latency_ms`) and insert a `200` audit row.
+6. On unknown customer: insert a `404` audit row, then return `404`.
 
 ## Request flow: `GET /audit-logs`
 
@@ -35,12 +48,13 @@ flowchart LR
 
 ## Data formats
 
-| Source | Format | Path |
-|--------|--------|------|
-| Bank accounts | JSON | `/mocks/bank/accounts/{customer_id}` |
-| FX rates | XML | `/mocks/fx/rates` |
-| Unified view | JSON | `/aggregate/{customer_id}` |
-| Audit trail | JSON | `/audit-logs?limit=` |
+| Source | Format | Path | Auth |
+|--------|--------|------|------|
+| Bank accounts | JSON | `/mocks/bank/accounts/{customer_id}` | Public |
+| FX rates | XML | `/mocks/fx/rates` | Public |
+| Login | JSON | `/auth/login` | Public |
+| Unified view | JSON | `/aggregate/{customer_id}` | Bearer JWT |
+| Audit trail | JSON | `/audit-logs?limit=` | Public |
 
 ## Audit log schema (`request_logs`)
 
@@ -57,4 +71,5 @@ flowchart LR
 
 - Mocks live in-process so the PoC runs with no external services or Docker.
 - XML parsing is isolated in `parse_fx_xml()` so aggregation stays easy to test.
-- Tests override the DB dependency with an in-memory SQLite database.
+- JWT auth is demo-grade (hardcoded user, HS256 secret); not a production IdP.
+- Tests override the DB dependency with an in-memory SQLite database and obtain tokens via `/auth/login`.
