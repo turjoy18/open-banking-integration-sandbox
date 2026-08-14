@@ -102,3 +102,48 @@ def test_audit_logs_limit(client):
 def test_audit_logs_invalid_limit(client):
     response = client.get("/audit-logs?limit=0")
     assert response.status_code == 422
+
+
+def test_login_success(client):
+    response = client.post(
+        "/auth/login",
+        json={"username": "demo", "password": "demo"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_type"] == "bearer"
+    assert isinstance(body["access_token"], str)
+    assert len(body["access_token"]) > 0
+
+
+def test_login_failure(client):
+    response = client.post(
+        "/auth/login",
+        json={"username": "demo", "password": "wrong"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect username or password"
+
+
+def test_aggregate_missing_token(client):
+    response = client.get("/aggregate/C001")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
+
+
+def test_aggregate_invalid_token(client):
+    response = client.get(
+        "/aggregate/C001",
+        headers={"Authorization": "Bearer not-a-real-token"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired token"
+
+
+def test_aggregate_wrong_auth_scheme(client):
+    response = client.get(
+        "/aggregate/C001",
+        headers={"Authorization": "Token some-value"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Not authenticated"
