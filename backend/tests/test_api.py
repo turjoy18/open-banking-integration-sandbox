@@ -1,6 +1,15 @@
 from app.api.mocks_fx import FX_XML, parse_fx_xml
 
 
+def auth_headers(client):
+    response = client.post(
+        "/auth/login",
+        json={"username": "demo", "password": "demo"},
+    )
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
@@ -34,7 +43,7 @@ def test_parse_fx_xml():
 
 
 def test_aggregate_success(client):
-    response = client.get("/aggregate/C001")
+    response = client.get("/aggregate/C001", headers=auth_headers(client))
     assert response.status_code == 200
     body = response.json()
     assert body["customer_id"] == "C001"
@@ -44,7 +53,7 @@ def test_aggregate_success(client):
 
 
 def test_aggregate_unknown_customer(client):
-    response = client.get("/aggregate/C999")
+    response = client.get("/aggregate/C999", headers=auth_headers(client))
     assert response.status_code == 404
 
 
@@ -55,8 +64,9 @@ def test_audit_logs_empty(client):
 
 
 def test_audit_logs_after_aggregate(client):
-    client.get("/aggregate/C001")
-    client.get("/aggregate/C999")
+    headers = auth_headers(client)
+    client.get("/aggregate/C001", headers=headers)
+    client.get("/aggregate/C999", headers=headers)
 
     response = client.get("/audit-logs")
     assert response.status_code == 200
@@ -76,9 +86,10 @@ def test_audit_logs_after_aggregate(client):
 
 
 def test_audit_logs_limit(client):
-    client.get("/aggregate/C001")
-    client.get("/aggregate/C001")
-    client.get("/aggregate/C999")
+    headers = auth_headers(client)
+    client.get("/aggregate/C001", headers=headers)
+    client.get("/aggregate/C001", headers=headers)
+    client.get("/aggregate/C999", headers=headers)
 
     response = client.get("/audit-logs?limit=2")
     assert response.status_code == 200
