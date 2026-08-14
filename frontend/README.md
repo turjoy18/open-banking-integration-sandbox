@@ -1,6 +1,6 @@
 # Frontend dashboard
 
-React + Vite UI for the Open Banking Integration Sandbox. Look up a customer aggregate from the FastAPI backend (`/aggregate/{customer_id}`) and view recent audit logs from `/audit-logs`.
+React + Vite UI for the Open Banking Integration Sandbox. Log in to obtain a JWT, look up a customer aggregate (`/aggregate/{customer_id}`), and view recent audit logs from `/audit-logs`.
 
 ## Prerequisites
 
@@ -31,11 +31,13 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ## Usage
 
-1. Enter a customer ID (`C001` or `C002`).
-2. Click **Fetch aggregate**.
-3. Review accounts, FX rates, and latency — or the error for unknown IDs (e.g. `C999`).
-4. Check **Recent audit logs** (loads on page open; refreshes after each aggregate call).
-5. Click **Refresh** to reload logs and update **Last updated**.
+1. Log in with demo credentials: `demo` / `demo`.
+2. Enter a customer ID (`C001` or `C002`).
+3. Click **Fetch aggregate** (sends `Authorization: Bearer <token>`).
+4. Review accounts, FX rates, and latency — or the error for unknown IDs (e.g. `C999`).
+5. Check **Recent audit logs** (public; loads on page open; refreshes after each aggregate call).
+6. Click **Refresh** to reload logs and update **Last updated**.
+7. **Log out** clears the stored token from `localStorage`.
 
 ## Lint
 
@@ -48,3 +50,4 @@ npm run lint
 - React + Vite
 - ESLint
 - Calls `http://127.0.0.1:8000` from the browser
+- JWT stored in `localStorage` after `/auth/login`
