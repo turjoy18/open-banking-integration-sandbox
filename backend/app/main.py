@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.aggregate import router as aggregate_router
 from app.api.audit_logs import router as audit_logs_router
+from app.api.auth import router as auth_router
 from app.api.mocks_bank import router as mocks_bank_router
 from app.api.mocks_fx import router as mocks_fx_router
 from app.db import init_db
@@ -28,6 +29,7 @@ app.include_router(mocks_bank_router)
 app.include_router(mocks_fx_router)
 app.include_router(aggregate_router)
 app.include_router(audit_logs_router)
+app.include_router(auth_router)
 
 @app.get("/health")
 def health():
