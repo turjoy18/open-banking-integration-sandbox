@@ -10,7 +10,8 @@ Built to demonstrate API integration, JSON/XML handling, testing, and clear tech
 - `GET /mocks/bank/accounts/{customer_id}` — mock bank data (JSON)
 - `GET /mocks/fx/rates` — mock FX rates (XML)
 - `GET /aggregate/{customer_id}` — merges bank + FX and logs the request
-- SQLite audit trail (`request_logs`)
+- `GET /audit-logs` — recent SQLite request audit rows (optional `?limit=`)
+- React dashboard with aggregate lookup and audit log viewer
 - Automated API tests with pytest
 
 ## Stack
@@ -58,9 +59,13 @@ curl http://127.0.0.1:8000/mocks/bank/accounts/C001
 curl http://127.0.0.1:8000/mocks/fx/rates
 curl http://127.0.0.1:8000/aggregate/C001
 curl http://127.0.0.1:8000/aggregate/C999
+curl http://127.0.0.1:8000/audit-logs
+curl "http://127.0.0.1:8000/audit-logs?limit=5"
 ```
 
 Sample customers: `C001`, `C002`. Unknown IDs return `404` and are still audited.
+
+`GET /audit-logs` returns newest rows first. `limit` defaults to `20` (min `1`, max `100`).
 
 ## Tests
 
@@ -89,4 +94,4 @@ More detail: [frontend/README.md](frontend/README.md)
 ## Roadmap
 
 - JWT auth for protected routes
-- Audit log viewer in the dashboard
+- Deployable demo (env-based API URL + hosted backend/frontend)

@@ -8,13 +8,15 @@ The sandbox is a single FastAPI app that exposes mock upstream systems and an ag
 
 ```mermaid
 flowchart LR
-  Client[Client / curl / Swagger] --> API[FastAPI app]
+  Client[Client / React / curl / Swagger] --> API[FastAPI app]
   API --> Bank[Mock Bank JSON]
   API --> FX[Mock FX XML]
   API --> Agg[Aggregate service]
+  API --> Audit[Audit logs API]
   Agg --> Bank
   Agg --> FX
   Agg --> DB[(SQLite request_logs)]
+  Audit --> DB
 ```
 
 ## Request flow: `GET /aggregate/{customer_id}`
@@ -25,6 +27,12 @@ flowchart LR
 4. On success: return merged JSON (`accounts`, `fx_rates`, `meta.latency_ms`) and insert a `200` audit row.
 5. On unknown customer: insert a `404` audit row, then return `404`.
 
+## Request flow: `GET /audit-logs`
+
+1. Client (dashboard, curl, or Swagger) calls `/audit-logs` with optional `limit`.
+2. API reads `request_logs` ordered by newest `id` first.
+3. Response is a JSON array of audit rows for operational visibility.
+
 ## Data formats
 
 | Source | Format | Path |
@@ -32,6 +40,7 @@ flowchart LR
 | Bank accounts | JSON | `/mocks/bank/accounts/{customer_id}` |
 | FX rates | XML | `/mocks/fx/rates` |
 | Unified view | JSON | `/aggregate/{customer_id}` |
+| Audit trail | JSON | `/audit-logs?limit=` |
 
 ## Audit log schema (`request_logs`)
 
