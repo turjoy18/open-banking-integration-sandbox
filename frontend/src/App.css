@@ -88,6 +88,32 @@ button:disabled {
   color: #4a5568;
 }
 
+.hint {
+  margin: 0.6rem 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+.auth-status {
+  margin: 0;
+}
+
+.auth-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.auth-grid input {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 pre {
   background: #0f172a;
   color: #e2e8f0;

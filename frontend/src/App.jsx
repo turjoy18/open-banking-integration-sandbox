@@ -2,8 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import './App.css'
 
 const API_BASE = 'http://127.0.0.1:8000'
+const TOKEN_KEY = 'sandbox_access_token'
 
 function App() {
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '')
+  const [username, setUsername] = useState('demo')
+  const [password, setPassword] = useState('demo')
+  const [authError, setAuthError] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
+
   const [customerId, setCustomerId] = useState('C001')
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
@@ -12,6 +19,15 @@ function App() {
   const [logsError, setLogsError] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
+
+  const saveToken = (value) => {
+    setToken(value)
+    if (value) {
+      localStorage.setItem(TOKEN_KEY, value)
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+    }
+  }
 
   const fetchLogs = useCallback(async () => {
     setLogsLoading(true)
@@ -36,18 +52,59 @@ function App() {
     fetchLogs()
   }, [fetchLogs])
 
+  async function handleLogin(event) {
+    event.preventDefault()
+    setAuthLoading(true)
+    setAuthError('')
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        setAuthError(body.detail || `Login failed (${response.status})`)
+        return
+      }
+      saveToken(body.access_token)
+    } catch {
+      setAuthError('Could not reach API. Is the backend running on port 8000?')
+    } finally {
+      setAuthLoading(false)
+    }
+  }
+
+  function handleLogout() {
+    saveToken('')
+    setData(null)
+    setError('')
+  }
+
   async function fetchAggregate(event) {
     event.preventDefault()
+    if (!token) {
+      setError('Log in first to fetch aggregates.')
+      return
+    }
+
     setLoading(true)
     setError('')
     setData(null)
 
     try {
-      const response = await fetch(`${API_BASE}/aggregate/${encodeURIComponent(customerId)}`)
+      const response = await fetch(`${API_BASE}/aggregate/${encodeURIComponent(customerId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const body = await response.json()
 
       if (!response.ok) {
-        setError(body.detail || `Request failed (${response.status})`)
+        if (response.status === 401) {
+          setError('Session expired or invalid. Please log in again.')
+          saveToken('')
+        } else {
+          setError(body.detail || `Request failed (${response.status})`)
+        }
         await fetchLogs()
         return
       }
@@ -68,6 +125,51 @@ function App() {
         <p>Lookup a customer aggregate from mock bank JSON + FX XML sources.</p>
       </header>
 
+      <section className="panel auth">
+        <div className="logs-header">
+          <h2>Authentication</h2>
+          {token ? (
+            <button type="button" className="secondary" onClick={handleLogout}>
+              Log out
+            </button>
+          ) : null}
+        </div>
+
+        {token ? (
+          <p className="meta auth-status">Signed in. Aggregate requests will send a Bearer token.</p>
+        ) : (
+          <form onSubmit={handleLogin}>
+            <div className="auth-grid">
+              <div>
+                <label htmlFor="username">Username</label>
+                <input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                />
+              </div>
+              <div>
+                <label htmlFor="password">Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </div>
+            </div>
+            <p className="meta hint">Demo credentials: demo / demo</p>
+            <button type="submit" disabled={authLoading || !username || !password}>
+              {authLoading ? 'Signing in…' : 'Log in'}
+            </button>
+          </form>
+        )}
+
+        {authError && <div className="error">{authError}</div>}
+      </section>
+
       <form className="panel" onSubmit={fetchAggregate}>
         <label htmlFor="customerId">Customer ID</label>
         <div className="row">
@@ -77,10 +179,11 @@ function App() {
             onChange={(e) => setCustomerId(e.target.value.trim())}
             placeholder="C001"
           />
-          <button type="submit" disabled={loading || !customerId}>
+          <button type="submit" disabled={loading || !customerId || !token}>
             {loading ? 'Loading…' : 'Fetch aggregate'}
           </button>
         </div>
+        {!token && <p className="meta hint">Log in above to enable aggregate lookup.</p>}
       </form>
 
       {error && <div className="error">{error}</div>}
