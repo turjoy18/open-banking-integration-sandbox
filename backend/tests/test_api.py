@@ -46,3 +46,48 @@ def test_aggregate_success(client):
 def test_aggregate_unknown_customer(client):
     response = client.get("/aggregate/C999")
     assert response.status_code == 404
+
+
+def test_audit_logs_empty(client):
+    response = client.get("/audit-logs")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_audit_logs_after_aggregate(client):
+    client.get("/aggregate/C001")
+    client.get("/aggregate/C999")
+
+    response = client.get("/audit-logs")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+
+    newest = body[0]
+    assert newest["customer_id"] == "C999"
+    assert newest["status_code"] == 404
+    assert newest["endpoint"] == "/aggregate/C999"
+    assert "latency_ms" in newest
+    assert "created_at" in newest
+
+    older = body[1]
+    assert older["customer_id"] == "C001"
+    assert older["status_code"] == 200
+
+
+def test_audit_logs_limit(client):
+    client.get("/aggregate/C001")
+    client.get("/aggregate/C001")
+    client.get("/aggregate/C999")
+
+    response = client.get("/audit-logs?limit=2")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+    assert body[0]["status_code"] == 404
+    assert body[1]["status_code"] == 200
+
+
+def test_audit_logs_invalid_limit(client):
+    response = client.get("/audit-logs?limit=0")
+    assert response.status_code == 422
