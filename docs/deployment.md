@@ -4,10 +4,12 @@ How to host the Open Banking Integration Sandbox as a live demo. This guide uses
 
 ## Architecture (hosted)
 
-| Piece | Render type | Build / start |
-|-------|-------------|---------------|
-| Backend | Web Service | `pip install -r requirements.txt` → `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Frontend | Static Site | Root: `frontend` → build `npm install && npm run build` → publish `dist` |
+
+| Piece    | Render type | Build / start                                                                                        |
+| -------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| Backend  | Web Service | `pip install -r requirements.txt` → `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Frontend | Static Site | Root: `frontend` → build `npm install && npm run build` → publish `dist`                             |
+
 
 The browser loads the static site and calls the API URL set as `VITE_API_BASE` at **build** time.
 
@@ -16,24 +18,30 @@ The browser loads the static site and calls the API URL set as `VITE_API_BASE` a
 - GitHub repo connected to Render
 - Phase 3 Issue 1 merged (`python-dotenv`, `CORS_ORIGINS`, `VITE_API_BASE`)
 
+
+
 ## 1. Deploy the backend (Web Service)
 
 1. Render → **New** → **Web Service** → select this repo.
 2. Settings (typical):
-   - **Name:** e.g. `open-banking-sandbox-api`
-   - **Runtime:** Python 3
-   - **Root Directory:** leave empty (repo root)
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+  - **Name:** e.g. `open-banking-sandbox-api`
+  - **Runtime:** Python 3
+  - **Root Directory:** leave empty (repo root)
+  - **Build Command:** `pip install -r requirements.txt`
+  - **Start Command:** `cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 3. **Environment** variables:
 
-| Key | Example / notes |
-|-----|-----------------|
-| `JWT_SECRET_KEY` | Long random string (`openssl rand -hex 32`) — **required in production** |
-| `CORS_ORIGINS` | Your frontend origin(s), comma-separated, e.g. `https://your-app.onrender.com` |
 
-4. Deploy and open `https://<api-service>.onrender.com/health` — expect `{"status":"ok"}`.
-5. Check Swagger: `https://<api-service>.onrender.com/docs`
+| Key              | Example / notes                                                                |
+| ---------------- | ------------------------------------------------------------------------------ |
+| `JWT_SECRET_KEY` | Long random string (`openssl rand -hex 32`) — **required in production**       |
+| `CORS_ORIGINS`   | Your frontend origin(s), comma-separated, e.g. `https://your-app.onrender.com` |
+
+
+1. Deploy and open `https://<api-service>.onrender.com/health` — expect `{"status":"ok"}`.
+2. Check Swagger: `https://<api-service>.onrender.com/docs`
+
+
 
 ### SQLite caveat
 
@@ -47,16 +55,20 @@ Free web services may sleep after idle time. The first request after sleep can t
 
 1. Render → **New** → **Static Site** → same repo.
 2. Settings:
-   - **Root Directory:** `frontend`
-   - **Build Command:** `npm install && npm run build`
-   - **Publish Directory:** `dist`
+  - **Root Directory:** `frontend`
+  - **Build Command:** `npm install && npm run build`
+  - **Publish Directory:** `dist`
 3. **Environment** (build-time):
 
-| Key | Value |
-|-----|--------|
+
+| Key             | Value                                                    |
+| --------------- | -------------------------------------------------------- |
 | `VITE_API_BASE` | `https://<api-service>.onrender.com` (no trailing slash) |
 
-4. Deploy. Note the static site URL (e.g. `https://open-banking-sandbox-ui.onrender.com`).
+
+1. Deploy. Note the static site URL (e.g. `https://open-banking-sandbox-ui.onrender.com`).
+
+
 
 ## 3. Wire CORS after you know the frontend URL
 
@@ -72,8 +84,10 @@ If you also test from local Vite against the hosted API:
 CORS_ORIGINS=https://<your-static-site>.onrender.com,http://127.0.0.1:5173,http://localhost:5173
 ```
 
-2. Redeploy the API (or restart) so CORS picks up the new value.
-3. If you change `VITE_API_BASE`, **rebuild** the static site (Vite inlines the value at build time).
+1. Redeploy the API (or restart) so CORS picks up the new value.
+2. If you change `VITE_API_BASE`, **rebuild** the static site (Vite inlines the value at build time).
+
+
 
 ## 4. Smoke test the live demo
 
@@ -90,20 +104,24 @@ curl -i -X POST https://<api-service>.onrender.com/auth/login \
   -d '{"username":"demo","password":"demo"}'
 ```
 
+
+
 ## Local vs production env
 
-| Variable | Local | Production |
-|----------|--------|------------|
-| `JWT_SECRET_KEY` | `.env` at repo root | Render API env |
-| `CORS_ORIGINS` | Vite URLs in `.env` | Frontend origin(s) on Render |
-| `VITE_API_BASE` | optional `frontend/.env` → `http://127.0.0.1:8000` | Render static site env at build |
+
+| Variable         | Local                                              | Production                      |
+| ---------------- | -------------------------------------------------- | ------------------------------- |
+| `JWT_SECRET_KEY` | `.env` at repo root                                | Render API env                  |
+| `CORS_ORIGINS`   | Vite URLs in `.env`                                | Frontend origin(s) on Render    |
+| `VITE_API_BASE`  | optional `frontend/.env` → `http://127.0.0.1:8000` | Render static site env at build |
+
 
 Do **not** commit `.env` files with real secrets. Keep `.env.example` as the template.
 
 ## After deploy checklist
 
-- [ ] `/health` returns 200 on the API
-- [ ] Login works from the hosted UI
-- [ ] Aggregate with JWT works; without login UI blocks / API returns 401
-- [ ] Audit logs load from the UI
-- [ ] Live URLs added to the root README (Phase 3 Issue 4)
+- [x] `/health` returns 200 on the API
+- [x] Login works from the hosted UI
+- [x] Aggregate with JWT works; without login UI blocks / API returns 401
+- [x] Audit logs load from the UI
+- [x] Live URLs added to the root README (Phase 3 Issue 4)
