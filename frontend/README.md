@@ -2,6 +2,13 @@
 
 React + Vite UI for the Open Banking Integration Sandbox. Log in to obtain a JWT, look up a customer aggregate (`/aggregate/{customer_id}`), and view recent audit logs from `/audit-logs`.
 
+## Live demo
+- **Frontend:** https://open-banking-integration-sandbox.onrender.com/
+- **API:** https://open-banking-sandbox-api.onrender.com
+- **Swagger:** https://open-banking-sandbox-api.onrender.com/docs
+Demo login: `demo` / `demo`
+> Free-tier Render services may sleep when idle; the first request can take ~30–60s. SQLite audit data may reset on redeploy.
+
 ## Prerequisites
 
 - Node.js + npm
