@@ -113,7 +113,9 @@ Log in with `demo` / `demo`, then fetch an aggregate. More detail: [frontend/REA
 
 - [Architecture](docs/architecture.md)
 - [API testing notes](docs/api-testing.md)
+- [Deployment](docs/deployment.md)
 
 ## Roadmap
 
-- Deployable demo (env-based API URL + hosted backend/frontend + `python-dotenv`)
+- Live demo URLs in README (after Render deploy)
+- Optional: managed Postgres for durable audit logs
