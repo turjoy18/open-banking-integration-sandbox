@@ -4,6 +4,13 @@ PoC middleware that integrates two mock financial data sources (JSON bank accoun
 
 Built to demonstrate API integration, JSON/XML handling, JWT auth, testing, and clear technical documentation.
 
+## Live demo
+- **Frontend:** https://open-banking-integration-sandbox.onrender.com/
+- **API:** https://open-banking-sandbox-api.onrender.com
+- **Swagger:** https://open-banking-sandbox-api.onrender.com/docs
+Demo login: `demo` / `demo`
+> Free-tier Render services may sleep when idle; the first request can take ~30–60s. SQLite audit data may reset on redeploy.
+
 ## Features
 
 - `GET /health` — service health check
@@ -117,5 +124,4 @@ Log in with `demo` / `demo`, then fetch an aggregate. More detail: [frontend/REA
 
 ## Roadmap
 
-- Live demo URLs in README (after Render deploy)
 - Optional: managed Postgres for durable audit logs
