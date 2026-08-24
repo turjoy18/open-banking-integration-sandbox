@@ -4,9 +4,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth import TokenPrincipal
-from app.api.mocks_bank import MOCK_ACCOUNTS
 from app.api.mocks_fx import FX_XML, parse_fx_xml
 from app.db import RequestLog
+from app.services.bank import get_customer_accounts
 from app.services.oauth import require_active_consent
 
 
@@ -16,7 +16,7 @@ def aggregate_customer(customer_id: str, db: Session, principal: TokenPrincipal)
 
     try:
         require_active_consent(db, principal, customer_id, "accounts.read")
-        bank_data = MOCK_ACCOUNTS.get(customer_id)
+        bank_data = get_customer_accounts(customer_id)
         if bank_data is None:
             raise HTTPException(status_code=404, detail="Customer not found")
 
