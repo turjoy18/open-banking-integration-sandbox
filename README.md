@@ -1,25 +1,31 @@
 # Open Banking Integration Sandbox
 
-PoC middleware that integrates two mock financial data sources (JSON bank accounts + XML FX rates), returns a unified customer aggregate, and writes request audit logs to SQLite.
+PoC middleware that acts as a mock **bank (ASPSP)** and **TPP**: OAuth2 authorization-code consent, a unified customer aggregate from mock bank JSON + FX XML, and SQLite request audit logs.
 
-Built to demonstrate API integration, JSON/XML handling, JWT auth, testing, and clear technical documentation.
+Built to demonstrate Open API integration, JSON/XML handling, consent-bound JWTs, testing, and clear technical documentation.
+
+This is **not** FAPI, mTLS, PAR, or JARM. Tokens are HS256. Do not treat it as production bank-grade security.
 
 ## Live demo
 - **Frontend:** https://open-banking-integration-sandbox.onrender.com/
 - **API:** https://open-banking-sandbox-api.onrender.com
 - **Swagger:** https://open-banking-sandbox-api.onrender.com/docs
-Demo login: `demo` / `demo`
+Demo bank login (authorize page): `demo` / `demo`
 > Free-tier Render services may sleep when idle; the first request can take ~30–60s. SQLite audit data may reset on redeploy.
 
 ## Features
 
 - `GET /health` — service health check
+- `GET /oauth/authorize` — bank-hosted consent page (authorization code)
+- `POST /oauth/token` — confidential client exchanges `code` for a consent-bound JWT
+- `POST /tpp/oauth/exchange` — dashboard exchanges `code`+`state` (secret stays on the server)
+- `GET /consents` / `DELETE /consents/{id}` / `POST /oauth/revoke` — list and revoke consent
 - `GET /mocks/bank/accounts/{customer_id}` — mock bank data (JSON)
 - `GET /mocks/fx/rates` — mock FX rates (XML)
-- `POST /auth/login` — mock login; returns a JWT access token
-- `GET /aggregate/{customer_id}` — merges bank + FX (requires Bearer JWT) and logs the request
+- `POST /auth/login` — deprecated demo JWT without consent (not for TPP access)
+- `GET /aggregate/{customer_id}` — merges bank + FX (Bearer + active `accounts.read` consent)
 - `GET /audit-logs` — recent SQLite request audit rows (optional `?limit=`; public)
-- React dashboard with login, aggregate lookup, and audit log viewer
+- React dashboard: Connect bank, consent revoke, aggregate lookup, audit log viewer
 - Automated API tests with pytest
 
 ## Stack
@@ -52,15 +58,15 @@ pip install -r requirements.txt
 
 ### JWT secret (optional for local PoC)
 
-Copy `.env.example` to `.env` if you want a custom signing secret:
+Copy `.env.example` to `.env` if you want a custom signing secret or TPP client values:
 
 ```bash
 cp .env.example .env
 ```
 
-`JWT_SECRET_KEY` is read from the environment when set. If unset, the app falls back to a local development default (`dev-secret-change-me`). Loading `.env` automatically is planned for the deploy phase; for now you can also export the variable in your shell.
+`JWT_SECRET_KEY` and `OAUTH_CLIENT_*` are read from the environment when set. Defaults match local Vite at `http://127.0.0.1:5173/callback`.
 
-Demo login credentials (PoC only): `demo` / `demo`
+Bank customer login on the authorize page (PoC only): `demo` / `demo`
 
 ## Run the API
 
@@ -79,21 +85,21 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 curl http://127.0.0.1:8000/mocks/bank/accounts/C001
 curl http://127.0.0.1:8000/mocks/fx/rates
 curl http://127.0.0.1:8000/audit-logs
-curl "http://127.0.0.1:8000/audit-logs?limit=5"
 
-# Login
-curl -X POST http://127.0.0.1:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d "{\"username\":\"demo\",\"password\":\"demo\"}"
+# Bank consent (HTML). Approve in a browser, or POST the form:
+# GET /oauth/authorize?response_type=code&client_id=sandbox-tpp&redirect_uri=http://127.0.0.1:5173/callback&scope=accounts.read&state=xyz
 
-# Protected aggregate (replace TOKEN)
+# After a code is issued, the TPP exchanges it (secret stays on the API):
+# curl -X POST http://127.0.0.1:8000/tpp/oauth/exchange \
+#   -H "Content-Type: application/json" \
+#   -d "{\"code\":\"CODE\",\"state\":\"xyz\"}"
+
+# Protected aggregate (replace TOKEN). Token customer must match the path.
 curl http://127.0.0.1:8000/aggregate/C001 \
-  -H "Authorization: Bearer TOKEN"
-curl http://127.0.0.1:8000/aggregate/C999 \
   -H "Authorization: Bearer TOKEN"
 ```
 
-Sample customers: `C001`, `C002`. Unknown IDs return `404` and are still audited. Missing/invalid tokens on `/aggregate` return `401`.
+Sample customers: `C001`, `C002`. A token for C001 requesting C002 returns `403`. Missing/invalid tokens return `401`. Revoked or missing `accounts.read` consent returns `403`.
 
 `GET /audit-logs` returns newest rows first. `limit` defaults to `20` (min `1`, max `100`).
 
@@ -112,9 +118,9 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL (usually http://127.0.0.1:5173). Keep the FastAPI server running on port 8000.
+Open http://127.0.0.1:5173 (not `localhost`, so the OAuth redirect URI matches). Keep the FastAPI server running on port 8000.
 
-Log in with `demo` / `demo`, then fetch an aggregate. More detail: [frontend/README.md](frontend/README.md)
+Click **Connect bank**, sign in with `demo` / `demo` on the bank page, then fetch an aggregate. More detail: [frontend/README.md](frontend/README.md)
 
 ## Docs
 
