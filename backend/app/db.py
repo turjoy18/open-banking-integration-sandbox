@@ -95,6 +95,28 @@ class ProductApplication(Base):
     )
 
 
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    customer_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    debtor_account_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    creditor_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    amount: Mapped[str] = mapped_column(String(32), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="received")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 def seed_oauth_client(db: Session) -> OAuthClient:
     """Ensure the confidential sandbox TPP client exists (idempotent)."""
     client = db.query(OAuthClient).filter(OAuthClient.client_id == OAUTH_CLIENT_ID).one_or_none()
