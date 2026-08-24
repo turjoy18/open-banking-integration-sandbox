@@ -1,5 +1,5 @@
 from app.api.mocks_fx import FX_XML, parse_fx_xml
-from app.config import OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI
+from app.config import OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URI
 from urllib.parse import parse_qs, urlparse
 
 
@@ -170,3 +170,113 @@ def test_aggregate_wrong_auth_scheme(client):
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+
+
+def _authorize_code(client, customer_id="C001", scopes=None, state="test-state"):
+    scopes = scopes or ["accounts.read", "transactions.read"]
+    authorize = client.post(
+        "/oauth/authorize",
+        data={
+            "username": "demo",
+            "password": "demo",
+            "customer_id": customer_id,
+            "client_id": OAUTH_CLIENT_ID,
+            "redirect_uri": OAUTH_REDIRECT_URI,
+            "response_type": "code",
+            "state": state,
+            "scope": scopes,
+        },
+        follow_redirects=False,
+    )
+    assert authorize.status_code == 302, authorize.text
+    return parse_qs(urlparse(authorize.headers["location"]).query)["code"][0]
+
+
+def test_oauth_token_rejects_bad_secret(client):
+    code = _authorize_code(client)
+    response = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": OAUTH_REDIRECT_URI,
+            "client_id": OAUTH_CLIENT_ID,
+            "client_secret": "wrong-secret",
+        },
+    )
+    assert response.status_code == 401
+    assert response.json()["error"] == "invalid_client"
+
+
+def test_oauth_token_rejects_reused_code(client):
+    code = _authorize_code(client)
+    first = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": OAUTH_REDIRECT_URI,
+            "client_id": OAUTH_CLIENT_ID,
+            "client_secret": OAUTH_CLIENT_SECRET,
+        },
+    )
+    assert first.status_code == 200
+    second = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": OAUTH_REDIRECT_URI,
+            "client_id": OAUTH_CLIENT_ID,
+            "client_secret": OAUTH_CLIENT_SECRET,
+        },
+    )
+    assert second.status_code == 400
+    assert second.json()["error"] == "invalid_grant"
+
+
+def test_tpp_exchange_rejects_state_mismatch(client):
+    code = _authorize_code(client, state="expected")
+    response = client.post(
+        "/tpp/oauth/exchange",
+        json={"code": code, "state": "other"},
+    )
+    assert response.status_code == 400
+
+
+def test_aggregate_login_token_requires_consent(client):
+    login = client.post("/auth/login", json={"username": "demo", "password": "demo"})
+    token = login.json()["access_token"]
+    response = client.get("/aggregate/C001", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
+
+
+def test_aggregate_missing_accounts_read_scope(client):
+    headers = oauth_headers(client, scopes=["payments.initiate"])
+    response = client.get("/aggregate/C001", headers=headers)
+    assert response.status_code == 403
+    assert "accounts.read" in response.json()["detail"]
+
+
+def test_revoke_consent_then_aggregate_forbidden(client):
+    headers = oauth_headers(client)
+    listed = client.get("/consents", headers=headers)
+    assert listed.status_code == 200
+    consents = listed.json()
+    assert consents
+    active = next(row for row in consents if row["status"] == "active")
+    revoked = client.delete(f"/consents/{active['id']}", headers=headers)
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "revoked"
+    response = client.get("/aggregate/C001", headers=headers)
+    assert response.status_code == 403
+    assert "revoked" in response.json()["detail"].lower()
+
+
+def test_oauth_revoke_by_token(client):
+    headers = oauth_headers(client)
+    token = headers["Authorization"].split(" ", 1)[1]
+    revoked = client.post("/oauth/revoke", json={"token": token})
+    assert revoked.status_code == 200
+    response = client.get("/aggregate/C001", headers=headers)
+    assert response.status_code == 403
