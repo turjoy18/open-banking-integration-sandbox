@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Authorize Sandbox TPP</title>
+    <style>
+      :root { font-family: "Segoe UI", system-ui, sans-serif; color: #14213d; background: #f4f7fb; }
+      body { margin: 0; }
+      .page { max-width: 520px; margin: 2rem auto; padding: 0 1.25rem 3rem; }
+      .panel { background: #fff; border: 1px solid #d8e0ea; border-radius: 10px; padding: 1.1rem; }
+      h1 { font-size: 1.35rem; margin: 0 0 0.35rem; }
+      p { color: #4a5568; }
+      label { display: block; font-weight: 600; margin: 0.75rem 0 0.35rem; }
+      input[type="text"], input[type="password"], select {
+        width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #c5d0de; border-radius: 8px; font-size: 1rem; box-sizing: border-box;
+      }
+      .scopes { margin: 0.5rem 0 1rem; }
+      .scopes label { font-weight: 500; margin: 0.25rem 0; }
+      button { padding: 0.55rem 0.9rem; border: none; border-radius: 8px; background: #1d4ed8; color: #fff; font-weight: 600; cursor: pointer; }
+      .error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; }
+      .hint { font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="panel">
+        <h1>Authorize {{ client_name }}</h1>
+        <p>Sign in as a bank customer and grant Open API scopes. This is a PoC consent screen (not FAPI).</p>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/oauth/authorize">
+          <input type="hidden" name="client_id" value="{{ client_id }}" />
+          <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}" />
+          <input type="hidden" name="state" value="{{ state or '' }}" />
+          <input type="hidden" name="response_type" value="code" />
+
+          <label for="username">Username</label>
+          <input id="username" name="username" value="demo" autocomplete="username" />
+
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" value="demo" autocomplete="current-password" />
+
+          <label for="customer_id">Customer to share</label>
+          <select id="customer_id" name="customer_id">
+            {% for cid in customers %}
+            <option value="{{ cid }}" {% if cid == selected_customer %}selected{% endif %}>{{ cid }}</option>
+            {% endfor %}
+          </select>
+
+          <label>Scopes</label>
+          <div class="scopes">
+            {% for scope in requested_scopes %}
+            <label>
+              <input type="checkbox" name="scope" value="{{ scope }}" checked />
+              {{ scope }}
+            </label>
+            {% endfor %}
+          </div>
+
+          <p class="hint">Demo bank login: demo / demo</p>
+          <button type="submit">Approve and continue</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>
