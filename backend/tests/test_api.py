@@ -1,14 +1,37 @@
 from app.api.mocks_fx import FX_XML, parse_fx_xml
+from app.config import OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI
+from urllib.parse import parse_qs, urlparse
+
+
+def oauth_headers(client, customer_id="C001", scopes=None):
+    scopes = scopes or ["accounts.read", "transactions.read", "payments.initiate"]
+    authorize = client.post(
+        "/oauth/authorize",
+        data={
+            "username": "demo",
+            "password": "demo",
+            "customer_id": customer_id,
+            "client_id": OAUTH_CLIENT_ID,
+            "redirect_uri": OAUTH_REDIRECT_URI,
+            "response_type": "code",
+            "state": "test-state",
+            "scope": scopes,
+        },
+        follow_redirects=False,
+    )
+    assert authorize.status_code == 302, authorize.text
+    code = parse_qs(urlparse(authorize.headers["location"]).query)["code"][0]
+    exchanged = client.post(
+        "/tpp/oauth/exchange",
+        json={"code": code, "state": "test-state"},
+    )
+    assert exchanged.status_code == 200, exchanged.text
+    token = exchanged.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 def auth_headers(client):
-    response = client.post(
-        "/auth/login",
-        json={"username": "demo", "password": "demo"},
-    )
-    assert response.status_code == 200
-    token = response.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    return oauth_headers(client)
 
 def test_health(client):
     response = client.get("/health")
@@ -53,8 +76,8 @@ def test_aggregate_success(client):
 
 
 def test_aggregate_unknown_customer(client):
-    response = client.get("/aggregate/C999", headers=auth_headers(client))
-    assert response.status_code == 404
+    response = client.get("/aggregate/C002", headers=oauth_headers(client, customer_id="C001"))
+    assert response.status_code == 403
 
 
 def test_audit_logs_empty(client):
@@ -64,9 +87,9 @@ def test_audit_logs_empty(client):
 
 
 def test_audit_logs_after_aggregate(client):
-    headers = auth_headers(client)
+    headers = oauth_headers(client, customer_id="C001")
     client.get("/aggregate/C001", headers=headers)
-    client.get("/aggregate/C999", headers=headers)
+    client.get("/aggregate/C002", headers=headers)
 
     response = client.get("/audit-logs")
     assert response.status_code == 200
@@ -74,9 +97,9 @@ def test_audit_logs_after_aggregate(client):
     assert len(body) == 2
 
     newest = body[0]
-    assert newest["customer_id"] == "C999"
-    assert newest["status_code"] == 404
-    assert newest["endpoint"] == "/aggregate/C999"
+    assert newest["customer_id"] == "C002"
+    assert newest["status_code"] == 403
+    assert newest["endpoint"] == "/aggregate/C002"
     assert "latency_ms" in newest
     assert "created_at" in newest
 
@@ -86,16 +109,16 @@ def test_audit_logs_after_aggregate(client):
 
 
 def test_audit_logs_limit(client):
-    headers = auth_headers(client)
+    headers = oauth_headers(client, customer_id="C001")
     client.get("/aggregate/C001", headers=headers)
     client.get("/aggregate/C001", headers=headers)
-    client.get("/aggregate/C999", headers=headers)
+    client.get("/aggregate/C002", headers=headers)
 
     response = client.get("/audit-logs?limit=2")
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 2
-    assert body[0]["status_code"] == 404
+    assert body[0]["status_code"] == 403
     assert body[1]["status_code"] == 200
 
 

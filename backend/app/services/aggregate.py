@@ -3,16 +3,19 @@ import time
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth import TokenPrincipal
 from app.api.mocks_bank import MOCK_ACCOUNTS
 from app.api.mocks_fx import FX_XML, parse_fx_xml
 from app.db import RequestLog
+from app.services.oauth import require_active_consent
 
 
-def aggregate_customer(customer_id: str, db: Session) -> dict:
+def aggregate_customer(customer_id: str, db: Session, principal: TokenPrincipal) -> dict:
     started = time.perf_counter()
     endpoint = f"/aggregate/{customer_id}"
 
     try:
+        require_active_consent(db, principal, customer_id, "accounts.read")
         bank_data = MOCK_ACCOUNTS.get(customer_id)
         if bank_data is None:
             raise HTTPException(status_code=404, detail="Customer not found")

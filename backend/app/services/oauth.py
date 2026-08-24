@@ -158,3 +158,50 @@ def exchange_authorization_code(
         "consent_id": consent.id,
         "customer_id": auth_code.customer_id,
     }
+
+
+def require_active_consent(db: Session, principal, customer_id: str, required_scope: str) -> Consent:
+    from fastapi import HTTPException, status
+
+    if principal.subject != customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token customer does not match requested customer",
+        )
+    if principal.consent_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Consent is required",
+        )
+
+    consent = db.query(Consent).filter(Consent.id == principal.consent_id).one_or_none()
+    now = datetime.now(timezone.utc)
+    if consent is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Consent not found")
+    if consent.customer_id != customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Consent does not cover this customer",
+        )
+    if principal.client_id and consent.client_id != principal.client_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Consent was not issued to this TPP",
+        )
+    if consent.status == "revoked":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Consent has been revoked")
+    if consent.status != "active":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Consent is not active")
+    expires_at = _aware(consent.expires_at)
+    if expires_at is not None and now >= expires_at:
+        consent.status = "expired"
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Consent has expired")
+
+    granted = set(consent.scopes.split())
+    if required_scope not in granted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing scope {required_scope}",
+        )
+    return consent
