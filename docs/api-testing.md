@@ -20,6 +20,7 @@ Coverage includes:
 - Aggregate missing token, invalid token, and wrong auth scheme → `401`
 - OAuth: bad client secret, reused authorization code, state mismatch
 - Missing `accounts.read`, revoke then aggregate `403`
+- Open API Phase 1–4 (public products, applications, accounts, payment status machine)
 
 Tests use FastAPI `TestClient` and an in-memory SQLite DB via dependency overrides. Protected aggregate tests complete the authorization-code flow (authorize form POST + `/tpp/oauth/exchange`).
 
