@@ -16,7 +16,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, deprecated=True)
 def login(body: LoginRequest):
     if not authenticate_user(body.username, body.password):
         raise HTTPException(
