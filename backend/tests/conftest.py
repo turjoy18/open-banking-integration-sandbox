@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db import Base, get_db
+from app.db import Base, get_db, seed_oauth_client
 from app.main import app
 
 
@@ -17,6 +17,11 @@ def client():
     )
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
+    seed_db = TestingSessionLocal()
+    try:
+        seed_oauth_client(seed_db)
+    finally:
+        seed_db.close()
 
     def override_get_db():
         db = TestingSessionLocal()
