@@ -4,14 +4,17 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import authenticate_user
+from app.auth import authenticate_user, principal_from_access_token
 from app.db import get_db
 from app.services.oauth import (
     TokenError,
     exchange_authorization_code,
+    get_consent,
     issue_authorization_code,
+    revoke_consent,
     validate_authorize_request,
 )
 
@@ -155,3 +158,29 @@ def oauth_token(
             status_code=status_code,
             content={"error": exc.error, "error_description": exc.description},
         )
+
+
+class RevokeRequest(BaseModel):
+    consent_id: int | None = None
+    token: str | None = None
+
+
+@router.post("/revoke")
+def oauth_revoke(body: RevokeRequest, db: Session = Depends(get_db)):
+    consent_id = body.consent_id
+    if consent_id is None and body.token:
+        principal = principal_from_access_token(body.token)
+        consent_id = principal.consent_id
+    if consent_id is None:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": "invalid_request", "error_description": "consent_id or token is required"},
+        )
+    consent = get_consent(db, consent_id)
+    if consent is None:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "ok"},
+        )
+    revoked = revoke_consent(db, consent)
+    return {"status": "revoked", "consent_id": revoked.id}

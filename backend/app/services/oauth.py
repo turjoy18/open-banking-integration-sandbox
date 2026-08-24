@@ -205,3 +205,25 @@ def require_active_consent(db: Session, principal, customer_id: str, required_sc
             detail=f"Missing scope {required_scope}",
         )
     return consent
+
+
+def list_consents_for_customer(db: Session, customer_id: str) -> list[Consent]:
+    return (
+        db.query(Consent)
+        .filter(Consent.customer_id == customer_id)
+        .order_by(Consent.id.desc())
+        .all()
+    )
+
+
+def revoke_consent(db: Session, consent: Consent) -> Consent:
+    now = datetime.now(timezone.utc)
+    consent.status = "revoked"
+    consent.revoked_at = now
+    db.commit()
+    db.refresh(consent)
+    return consent
+
+
+def get_consent(db: Session, consent_id: int) -> Consent | None:
+    return db.query(Consent).filter(Consent.id == consent_id).one_or_none()
