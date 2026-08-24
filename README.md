@@ -15,7 +15,10 @@ Demo bank login (authorize page): `demo` / `demo`
 
 ## Features
 
-- `GET /health` — service health check
+- `GET /open-api/v1/products` — Phase 1 public product catalog
+- `POST /open-api/v1/applications` — Phase 2 product application stub
+- `GET /open-api/v1/accounts/{customer_id}` — Phase 3 account information (consent)
+- `POST /open-api/v1/payments` — Phase 4 payment initiation (consent)
 - `GET /oauth/authorize` — bank-hosted consent page (authorization code)
 - `POST /oauth/token` — confidential client exchanges `code` for a consent-bound JWT
 - `POST /tpp/oauth/exchange` — dashboard exchanges `code`+`state` (secret stays on the server)
@@ -125,6 +128,7 @@ Click **Connect bank**, sign in with `demo` / `demo` on the bank page, then fetc
 ## Docs
 
 - [Architecture](docs/architecture.md)
+- [HKMA Open API mapping](docs/hkma-mapping.md)
 - [API testing notes](docs/api-testing.md)
 - [Deployment](docs/deployment.md)
 
