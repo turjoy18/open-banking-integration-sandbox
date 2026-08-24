@@ -47,7 +47,8 @@ label {
   gap: 0.6rem;
 }
 
-input {
+input,
+select {
   flex: 1;
   padding: 0.55rem 0.7rem;
   border: 1px solid #c5d0de;
@@ -88,7 +89,11 @@ button:disabled {
   color: #4a5568;
 }
 
-.hint {
+.product-list {
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+  color: #4a5568;
+}
   margin: 0.6rem 0 0.75rem;
   font-size: 0.9rem;
 }

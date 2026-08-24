@@ -11,6 +11,15 @@ const REDIRECT_URI =
   import.meta.env.VITE_OAUTH_REDIRECT_URI || `${window.location.origin}/callback`
 const DEFAULT_SCOPES = 'accounts.read transactions.read payments.initiate'
 
+function hkdReportingTotal(data) {
+  if (data?.meta?.hkd_total != null) {
+    return Number(data.meta.hkd_total)
+  }
+  return (data?.accounts || [])
+    .filter((account) => account.currency === 'HKD')
+    .reduce((sum, account) => sum + Number(account.balance || 0), 0)
+}
+
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || '')
   const [linkedCustomer, setLinkedCustomer] = useState(
@@ -28,6 +37,14 @@ function App() {
   const [logsError, setLogsError] = useState('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [products, setProducts] = useState([])
+  const [applications, setApplications] = useState([])
+  const [applyProductId, setApplyProductId] = useState('HKD-SAVINGS')
+  const [payments, setPayments] = useState([])
+  const [payee, setPayee] = useState('Demo Payee')
+  const [payAmount, setPayAmount] = useState('100')
+  const [payAccount, setPayAccount] = useState('HK-001-SAV')
+  const [paymentNotice, setPaymentNotice] = useState('')
 
   const saveSession = (accessToken, customer, consentId) => {
     setToken(accessToken)
@@ -49,6 +66,54 @@ function App() {
       localStorage.removeItem(CONSENT_KEY)
     }
   }
+
+  const authHeaders = useCallback(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token],
+  )
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/open-api/v1/products`)
+      if (!response.ok) {
+        return
+      }
+      const body = await response.json()
+      setProducts(body.products || [])
+    } catch {
+      /* Phase 1 catalog is best-effort */
+    }
+  }, [])
+
+  const fetchApplications = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/open-api/v1/applications`)
+      if (!response.ok) {
+        return
+      }
+      setApplications(await response.json())
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const fetchPayments = useCallback(async () => {
+    if (!token) {
+      setPayments([])
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE}/open-api/v1/payments`, {
+        headers: authHeaders(),
+      })
+      if (!response.ok) {
+        return
+      }
+      setPayments(await response.json())
+    } catch {
+      /* ignore */
+    }
+  }, [token, authHeaders])
 
   const fetchLogs = useCallback(async () => {
     setLogsLoading(true)
@@ -95,6 +160,15 @@ function App() {
   useEffect(() => {
     void fetchConsents(token)
   }, [token, fetchConsents])
+
+  useEffect(() => {
+    void fetchProducts()
+    void fetchApplications()
+  }, [fetchProducts, fetchApplications])
+
+  useEffect(() => {
+    void fetchPayments()
+  }, [fetchPayments])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -179,6 +253,58 @@ function App() {
     } catch {
       setAuthError('Could not reach API to revoke consent.')
     }
+  }
+
+  async function handleApply(event) {
+    event.preventDefault()
+    const response = await fetch(`${API_BASE}/open-api/v1/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product_id: applyProductId,
+        customer_id: linkedCustomer || customerId || null,
+      }),
+    })
+    if (!response.ok) {
+      setError(`Application failed (${response.status})`)
+      return
+    }
+    await fetchApplications()
+  }
+
+  async function handlePay(event) {
+    event.preventDefault()
+    setPaymentNotice('')
+    const response = await fetch(`${API_BASE}/open-api/v1/payments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({
+        debtor_account_id: payAccount,
+        creditor_name: payee,
+        amount: Number(payAmount),
+        currency: 'HKD',
+      }),
+    })
+    const body = await response.json()
+    if (!response.ok) {
+      setPaymentNotice(body.detail || `Payment failed (${response.status})`)
+      return
+    }
+    setPaymentNotice(`Payment ${body.id} ${body.status}`)
+    await fetchPayments()
+  }
+
+  async function handlePollPayment(paymentId) {
+    const response = await fetch(`${API_BASE}/open-api/v1/payments/${paymentId}`, {
+      headers: authHeaders(),
+    })
+    const body = await response.json()
+    if (!response.ok) {
+      setPaymentNotice(body.detail || `Poll failed (${response.status})`)
+      return
+    }
+    setPaymentNotice(`Payment ${body.id} is ${body.status}`)
+    await fetchPayments()
   }
 
   async function fetchAggregate(event) {
@@ -303,6 +429,110 @@ function App() {
         </section>
       )}
 
+      <section className="panel">
+        <h2>Phase 1 — Products</h2>
+        {products.length === 0 ? (
+          <p className="meta">No products loaded. Is the API running?</p>
+        ) : (
+          <ul className="product-list">
+            {products.map((product) => (
+              <li key={product.product_id}>
+                <strong>{product.name}</strong> ({product.currency}) — {product.description}
+              </li>
+            ))}
+          </ul>
+        )}
+        <form onSubmit={handleApply}>
+          <label htmlFor="applyProduct">Phase 2 — Apply</label>
+          <div className="row">
+            <select
+              id="applyProduct"
+              value={applyProductId}
+              onChange={(e) => setApplyProductId(e.target.value)}
+            >
+              {products.map((product) => (
+                <option key={product.product_id} value={product.product_id}>
+                  {product.product_id}
+                </option>
+              ))}
+            </select>
+            <button type="submit">Submit application</button>
+          </div>
+        </form>
+        {applications.length > 0 && (
+          <p className="meta">
+            Latest application #{applications[0].id} {applications[0].product_id} —{' '}
+            {applications[0].status}
+          </p>
+        )}
+      </section>
+
+      {token && (
+        <section className="panel">
+          <h2>Phase 4 — Payments</h2>
+          <form onSubmit={handlePay}>
+            <div className="auth-grid">
+              <div>
+                <label htmlFor="payAccount">Debtor account</label>
+                <input
+                  id="payAccount"
+                  value={payAccount}
+                  onChange={(e) => setPayAccount(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="payee">Payee</label>
+                <input id="payee" value={payee} onChange={(e) => setPayee(e.target.value)} />
+              </div>
+              <div>
+                <label htmlFor="payAmount">Amount (HKD)</label>
+                <input
+                  id="payAmount"
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                />
+              </div>
+            </div>
+            <button type="submit">Initiate payment</button>
+          </form>
+          {paymentNotice && <p className="meta">{paymentNotice}</p>}
+          {payments.length > 0 && (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>{payment.id}</td>
+                      <td>
+                        {payment.amount} {payment.currency}
+                      </td>
+                      <td>{payment.status}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => handlePollPayment(payment.id)}
+                        >
+                          Poll status
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       <form className="panel" onSubmit={fetchAggregate}>
         <label htmlFor="customerId">Customer ID</label>
         <div className="row">
@@ -324,7 +554,13 @@ function App() {
       {data && (
         <section className="panel results">
           <h2>Result for {data.customer_id}</h2>
-          <p className="meta">Latency: {data.meta?.latency_ms} ms</p>
+          <p className="meta">
+            Latency: {data.meta?.latency_ms} ms
+            {data.meta?.fx_status ? ` · FX: ${data.meta.fx_status}` : ''}
+            {' · '}
+            HKD reporting: {hkdReportingTotal(data).toFixed(2)}
+            {data.meta?.hkd_total == null ? ' (HKD accounts only until FX conversion lands)' : ''}
+          </p>
 
           <h3>Accounts</h3>
           <pre>{JSON.stringify(data.accounts, null, 2)}</pre>
