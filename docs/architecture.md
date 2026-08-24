@@ -11,6 +11,24 @@ Aggregation requires a Bearer JWT **bound to an active consent**. Results (and 4
 
 This PoC uses HS256 JWTs. It does **not** implement FAPI, mTLS, PAR, or JARM.
 
+## Actors
+
+| Actor | Who in this PoC | Responsibility |
+|-------|-----------------|----------------|
+| Customer | `demo` / `demo` on the bank page; `C001` / `C002` | Grants and revokes consent |
+| ASPSP (bank) | `/oauth/*`, `/open-api/v1/*`, `/mocks/*` | Accounts, products, payments, consent |
+| TPP | React dashboard + `/tpp/oauth/exchange` + `/aggregate` | Uses bank APIs only after consent |
+| Ops | Companion [it-ops-monitor](https://github.com/turjoy18/it-ops-monitor) | Probes `/health` and Phase 1 products |
+
+Same process, two API roles — not three deployables.
+
+## Data handling
+
+- **Purpose limitation:** FX is used only to produce an HKD reporting total, not stored as a customer profile.
+- **Minimization:** audit `summary` masks account-like ids and decimal amounts. Access tokens are never logged.
+- **Retention:** SQLite `sandbox.db` is a local PoC file. There is no scheduled purge; delete the file to wipe consents, payments, and audits. A production bank would set a retention period and anonymize.
+- **Screen scraping:** the TPP must call APIs with a consent-bound token; there is no HTML scrape path for accounts.
+
 ## Component diagram
 
 ```mermaid
@@ -48,8 +66,8 @@ Scopes: `accounts.read`, `transactions.read`, `payments.initiate`.
 2. `get_current_principal` verifies the JWT (HS256). Missing/invalid tokens return `401`.
 3. Active consent must cover this customer and include `accounts.read`; otherwise `403`.
 4. Token `sub` must equal the path customer id (C001 cannot read C002).
-5. Service looks up mock bank JSON and parses FX XML.
-6. On success: return merged JSON and insert a `200` audit row.
+5. Service loads accounts via the bank service and FX rates (`ok` / `stale` / `unavailable`).
+6. On success: return accounts, FX map, `meta.hkd_total`, and insert a `200` audit row (`tpp_id`, `consent_id`, `purpose=account_aggregation`). FX outage still returns accounts.
 
 ## Consent revoke
 
@@ -57,6 +75,20 @@ Scopes: `accounts.read`, `transactions.read`, `payments.initiate`.
 - `DELETE /consents/{id}` — customer revokes
 - `POST /oauth/revoke` — `{consent_id}` or `{token}`
 - After revoke, aggregate returns `403`
+
+## Audit log schema (`request_logs`)
+
+| Column | Purpose |
+|--------|---------|
+| endpoint | Path called |
+| customer_id | Customer key when applicable |
+| status_code | HTTP outcome |
+| latency_ms | Processing time |
+| summary | Masked result note (no tokens, no raw balances) |
+| tpp_id | Confidential client id (`sandbox-tpp`) |
+| consent_id | Consent the call was made under |
+| purpose | e.g. `account_aggregation` |
+| created_at | UTC timestamp |
 
 ## Data formats
 
@@ -68,6 +100,7 @@ Scopes: `accounts.read`, `transactions.read`, `payments.initiate`.
 | Token | JSON | `/oauth/token` | Client id + secret |
 | TPP exchange | JSON | `/tpp/oauth/exchange` | Public (code + state) |
 | Unified view | JSON | `/aggregate/{customer_id}` | Bearer + consent |
+| Open API products | JSON | `/open-api/v1/products` | Public |
 | Audit trail | JSON | `/audit-logs?limit=` | Public |
 
 ## Design notes
