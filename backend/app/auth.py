@@ -18,9 +18,11 @@ DEMO_PASSWORD = "demo"
 security = HTTPBearer(auto_error=False)
 
 
-def create_access_token(subject: str) -> str:
+def create_access_token(subject: str, extra_claims: dict | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": subject, "exp": expire}
+    if extra_claims:
+        payload.update(extra_claims)
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
