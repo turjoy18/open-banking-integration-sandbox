@@ -81,6 +81,20 @@ class AuthCode(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ProductApplication(Base):
+    __tablename__ = "product_applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    product_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    customer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="received")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 def seed_oauth_client(db: Session) -> OAuthClient:
     """Ensure the confidential sandbox TPP client exists (idempotent)."""
     client = db.query(OAuthClient).filter(OAuthClient.client_id == OAUTH_CLIENT_ID).one_or_none()
