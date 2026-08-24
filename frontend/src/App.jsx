@@ -603,6 +603,8 @@ function App() {
                   <th>Status</th>
                   <th>Latency</th>
                   <th>Endpoint</th>
+                  <th>TPP</th>
+                  <th>Consent</th>
                   <th>Summary</th>
                 </tr>
               </thead>
@@ -618,6 +620,8 @@ function App() {
                     </td>
                     <td>{log.latency_ms} ms</td>
                     <td>{log.endpoint}</td>
+                    <td>{log.tpp_id || '—'}</td>
+                    <td>{log.consent_id || '—'}</td>
                     <td>{log.summary || '—'}</td>
                   </tr>
                 ))}

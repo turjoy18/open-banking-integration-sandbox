@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, String, create_engine
+from sqlalchemy import DateTime, Integer, String, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from app.config import (
@@ -32,6 +32,9 @@ class RequestLog(Base):
     status_code: Mapped[int] = mapped_column(Integer, nullable=False)
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     summary: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    tpp_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    consent_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    purpose: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -142,11 +145,28 @@ def seed_oauth_client(db: Session) -> OAuthClient:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _migrate_request_logs()
     db = SessionLocal()
     try:
         seed_oauth_client(db)
     finally:
         db.close()
+
+
+def _migrate_request_logs() -> None:
+    """Add consent audit columns on existing SQLite files (create_all will not ALTER)."""
+    statements = [
+        "ALTER TABLE request_logs ADD COLUMN tpp_id VARCHAR(64)",
+        "ALTER TABLE request_logs ADD COLUMN consent_id INTEGER",
+        "ALTER TABLE request_logs ADD COLUMN purpose VARCHAR(64)",
+    ]
+    with engine.connect() as conn:
+        for sql in statements:
+            try:
+                conn.execute(text(sql))
+                conn.commit()
+            except Exception:
+                conn.rollback()
 
 
 def get_db():

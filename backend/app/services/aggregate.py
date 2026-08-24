@@ -7,6 +7,7 @@ from app.auth import TokenPrincipal
 from app.api.mocks_fx import FX_XML, parse_fx_xml
 from app.db import RequestLog
 from app.services.bank import get_customer_accounts
+from app.services.masking import mask_summary
 from app.services.oauth import require_active_consent
 
 
@@ -36,7 +37,12 @@ def aggregate_customer(customer_id: str, db: Session, principal: TokenPrincipal)
                 customer_id=customer_id,
                 status_code=200,
                 latency_ms=latency_ms,
-                summary=f"accounts={len(bank_data['accounts'])}; fx_pairs={len(fx_rates)}",
+                summary=mask_summary(
+                    f"accounts={len(bank_data['accounts'])}; fx_pairs={len(fx_rates)}"
+                ),
+                tpp_id=principal.client_id,
+                consent_id=principal.consent_id,
+                purpose="account_aggregation",
             )
         )
         db.commit()
@@ -50,7 +56,10 @@ def aggregate_customer(customer_id: str, db: Session, principal: TokenPrincipal)
                 customer_id=customer_id,
                 status_code=exc.status_code,
                 latency_ms=latency_ms,
-                summary=str(exc.detail),
+                summary=mask_summary(str(exc.detail)),
+                tpp_id=principal.client_id,
+                consent_id=principal.consent_id,
+                purpose="account_aggregation",
             )
         )
         db.commit()
