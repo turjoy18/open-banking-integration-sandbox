@@ -39,6 +39,16 @@ def test_health(client):
     assert response.json() == {"status": "ok"}
 
 
+def test_health_ready(client):
+    response = client.get("/health/ready")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["checks"]["db"] == "up"
+    assert body["checks"]["bank"] == "up"
+    assert body["checks"]["fx"] == "up"
+
+
 def test_mock_bank_known_customer(client):
     response = client.get("/mocks/bank/accounts/C001")
     assert response.status_code == 200

@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 import app.config  # noqa: F401 — load .env before other modules read os.environ
 from app.api.aggregate import router as aggregate_router
@@ -15,9 +17,10 @@ from app.api.open_api_accounts import router as open_api_accounts_router
 from app.api.open_api_applications import router as open_api_applications_router
 from app.api.open_api_products import router as open_api_products_router
 from app.api.open_api_payments import router as open_api_payments_router
-from app.api.mocks_bank import router as mocks_bank_router
+from app.api.mocks_bank import MOCK_ACCOUNTS, router as mocks_bank_router
 from app.api.mocks_fx import router as mocks_fx_router
-from app.db import init_db
+from app.db import SessionLocal, init_db
+from app.services.fx import load_fx_rates
 
 
 @asynccontextmanager
@@ -62,3 +65,26 @@ app.include_router(auth_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def health_ready():
+    checks: dict[str, str] = {}
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        checks["db"] = "up"
+    except Exception:
+        checks["db"] = "down"
+    finally:
+        db.close()
+
+    checks["bank"] = "up" if MOCK_ACCOUNTS else "down"
+    rates, fx_status = load_fx_rates()
+    checks["fx"] = "up" if fx_status != "unavailable" and rates else "down"
+
+    ready = all(value == "up" for value in checks.values())
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"status": "ok" if ready else "degraded", "checks": checks},
+    )

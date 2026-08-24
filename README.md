@@ -15,6 +15,8 @@ Demo bank login (authorize page): `demo` / `demo`
 
 ## Features
 
+- `GET /health` — process liveness (`{"status":"ok"}`)
+- `GET /health/ready` — db / bank mock / FX dependency checks
 - `GET /open-api/v1/products` — Phase 1 public product catalog
 - `POST /open-api/v1/applications` — Phase 2 product application stub
 - `GET /open-api/v1/accounts/{customer_id}` — Phase 3 account information (consent)
