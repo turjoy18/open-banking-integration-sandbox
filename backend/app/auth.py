@@ -39,16 +39,7 @@ def authenticate_user(username: str, password: str) -> bool:
     return username == DEMO_USERNAME and password == DEMO_PASSWORD
 
 
-def get_current_principal(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-) -> TokenPrincipal:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = credentials.credentials
+def principal_from_access_token(token: str) -> TokenPrincipal:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
@@ -74,6 +65,18 @@ def get_current_principal(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def get_current_principal(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> TokenPrincipal:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return principal_from_access_token(credentials.credentials)
 
 
 def get_current_user(
