@@ -83,3 +83,78 @@ def issue_authorization_code(
     db.commit()
     db.refresh(auth_code)
     return auth_code
+
+
+class TokenError(Exception):
+    def __init__(self, error: str, description: str):
+        self.error = error
+        self.description = description
+        super().__init__(description)
+
+
+def _aware(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def exchange_authorization_code(
+    db: Session,
+    *,
+    grant_type: str,
+    code: str,
+    redirect_uri: str,
+    client_id: str,
+    client_secret: str,
+) -> dict:
+    if grant_type != "authorization_code":
+        raise TokenError("unsupported_grant_type", "grant_type must be authorization_code")
+
+    client = get_oauth_client(db, client_id)
+    if client is None or client.client_secret != client_secret:
+        raise TokenError("invalid_client", "Invalid client credentials")
+
+    auth_code = db.query(AuthCode).filter(AuthCode.code == code).one_or_none()
+    now = datetime.now(timezone.utc)
+    if auth_code is None:
+        raise TokenError("invalid_grant", "Unknown authorization code")
+    if auth_code.used_at is not None:
+        raise TokenError("invalid_grant", "Authorization code already used")
+    if _aware(auth_code.expires_at) is not None and now >= _aware(auth_code.expires_at):
+        raise TokenError("invalid_grant", "Authorization code expired")
+    if auth_code.client_id != client_id:
+        raise TokenError("invalid_grant", "Authorization code was not issued to this client")
+    if auth_code.redirect_uri != redirect_uri:
+        raise TokenError("invalid_grant", "redirect_uri does not match")
+
+    consent = db.query(Consent).filter(Consent.id == auth_code.consent_id).one_or_none()
+    if consent is None or consent.status != "active":
+        raise TokenError("invalid_grant", "Consent is not active")
+    if _aware(consent.expires_at) is not None and now >= _aware(consent.expires_at):
+        consent.status = "expired"
+        db.commit()
+        raise TokenError("invalid_grant", "Consent has expired")
+
+    auth_code.used_at = now
+    db.commit()
+
+    from app.auth import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token
+
+    token = create_access_token(
+        auth_code.customer_id,
+        extra_claims={
+            "client_id": auth_code.client_id,
+            "consent_id": consent.id,
+            "scope": auth_code.scopes,
+        },
+    )
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "scope": auth_code.scopes,
+        "consent_id": consent.id,
+        "customer_id": auth_code.customer_id,
+    }

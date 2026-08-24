@@ -2,13 +2,18 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.auth import authenticate_user
 from app.db import get_db
-from app.services.oauth import issue_authorization_code, validate_authorize_request
+from app.services.oauth import (
+    TokenError,
+    exchange_authorization_code,
+    issue_authorization_code,
+    validate_authorize_request,
+)
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
 
@@ -120,3 +125,33 @@ def authorize_post(
         url=f"{redirect_uri}?{query}",
         status_code=status.HTTP_302_FOUND,
     )
+
+
+@router.post("/token")
+def oauth_token(
+    db: Session = Depends(get_db),
+    grant_type: str = Form(...),
+    code: str = Form(...),
+    redirect_uri: str = Form(...),
+    client_id: str = Form(...),
+    client_secret: str = Form(...),
+):
+    try:
+        return exchange_authorization_code(
+            db,
+            grant_type=grant_type,
+            code=code,
+            redirect_uri=redirect_uri,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+    except TokenError as exc:
+        status_code = (
+            status.HTTP_401_UNAUTHORIZED
+            if exc.error == "invalid_client"
+            else status.HTTP_400_BAD_REQUEST
+        )
+        return JSONResponse(
+            status_code=status_code,
+            content={"error": exc.error, "error_description": exc.description},
+        )
