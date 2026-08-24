@@ -280,3 +280,86 @@ def test_oauth_revoke_by_token(client):
     assert revoked.status_code == 200
     response = client.get("/aggregate/C001", headers=headers)
     assert response.status_code == 403
+
+
+def test_phase1_products_public(client):
+    response = client.get("/open-api/v1/products")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["phase"] == 1
+    ids = {item["product_id"] for item in body["products"]}
+    assert "HKD-SAVINGS" in ids
+    assert "USD-CURRENT" in ids
+
+
+def test_phase2_application_accepted(client):
+    created = client.post(
+        "/open-api/v1/applications",
+        json={"product_id": "HKD-SAVINGS", "customer_id": "C001"},
+    )
+    assert created.status_code == 201
+    body = created.json()
+    assert body["status"] == "accepted"
+    fetched = client.get(f"/open-api/v1/applications/{body['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["product_id"] == "HKD-SAVINGS"
+
+
+def test_phase2_unknown_product(client):
+    response = client.post("/open-api/v1/applications", json={"product_id": "NOPE"})
+    assert response.status_code == 400
+
+
+def test_phase3_accounts_require_token(client):
+    response = client.get("/open-api/v1/accounts/C001")
+    assert response.status_code == 401
+
+
+def test_phase3_accounts_and_transactions(client):
+    headers = oauth_headers(client, customer_id="C001")
+    accounts = client.get("/open-api/v1/accounts/C001", headers=headers)
+    assert accounts.status_code == 200
+    body = accounts.json()
+    assert body["phase"] == 3
+    assert body["customer_id"] == "C001"
+    txns = client.get("/open-api/v1/accounts/C001/transactions", headers=headers)
+    assert txns.status_code == 200
+    assert "transactions" in txns.json()
+
+
+def test_phase4_payment_status_machine(client):
+    headers = oauth_headers(client, customer_id="C001")
+    created = client.post(
+        "/open-api/v1/payments",
+        headers=headers,
+        json={
+            "debtor_account_id": "HK-001-SAV",
+            "creditor_name": "Demo Payee",
+            "amount": 25,
+            "currency": "HKD",
+        },
+    )
+    assert created.status_code == 201
+    payment_id = created.json()["id"]
+    assert created.json()["status"] == "received"
+    first = client.get(f"/open-api/v1/payments/{payment_id}", headers=headers)
+    assert first.json()["status"] == "pending"
+    second = client.get(f"/open-api/v1/payments/{payment_id}", headers=headers)
+    assert second.json()["status"] == "completed"
+    third = client.get(f"/open-api/v1/payments/{payment_id}", headers=headers)
+    assert third.json()["status"] == "completed"
+
+
+def test_phase4_rejects_foreign_account(client):
+    headers = oauth_headers(client, customer_id="C001")
+    response = client.post(
+        "/open-api/v1/payments",
+        headers=headers,
+        json={
+            "debtor_account_id": "HK-002-SAV",
+            "creditor_name": "Demo Payee",
+            "amount": 10,
+            "currency": "HKD",
+        },
+    )
+    assert response.status_code == 400
