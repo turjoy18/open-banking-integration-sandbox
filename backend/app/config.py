@@ -14,3 +14,4 @@ OAUTH_REDIRECT_URI = os.getenv(
     "http://127.0.0.1:5173/callback",
 )
 OAUTH_CLIENT_NAME = os.getenv("OAUTH_CLIENT_NAME", "Sandbox TPP")
+FX_FORCE_STATUS = os.getenv("FX_FORCE_STATUS", "").strip().lower()

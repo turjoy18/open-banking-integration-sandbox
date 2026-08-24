@@ -559,7 +559,7 @@ function App() {
             {data.meta?.fx_status ? ` · FX: ${data.meta.fx_status}` : ''}
             {' · '}
             HKD reporting: {hkdReportingTotal(data).toFixed(2)}
-            {data.meta?.hkd_total == null ? ' (HKD accounts only until FX conversion lands)' : ''}
+            {data.meta?.reporting_currency ? ` ${data.meta.reporting_currency}` : ''}
           </p>
 
           <h3>Accounts</h3>
