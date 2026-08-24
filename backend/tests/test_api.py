@@ -363,3 +363,54 @@ def test_phase4_rejects_foreign_account(client):
         },
     )
     assert response.status_code == 400
+
+
+def test_audit_includes_tpp_and_consent(client):
+    headers = oauth_headers(client, customer_id="C001")
+    client.get("/aggregate/C001", headers=headers)
+    logs = client.get("/audit-logs").json()
+    assert logs
+    newest = logs[0]
+    assert newest["tpp_id"] == OAUTH_CLIENT_ID
+    assert newest["consent_id"] is not None
+    assert newest["purpose"] == "account_aggregation"
+    assert "HK-001" not in (newest["summary"] or "")
+
+
+def test_mask_account_id():
+    from app.services.masking import mask_account_id, mask_summary
+
+    assert mask_account_id("HK-001-SAV") == "HK***AV"
+    masked = mask_summary("paid 12.50 from HK-001-SAV")
+    assert "***" in masked
+    assert "12.50" not in masked
+
+
+def test_aggregate_hkd_reporting(client):
+    headers = oauth_headers(client, customer_id="C001")
+    response = client.get("/aggregate/C001", headers=headers)
+    assert response.status_code == 200
+    meta = response.json()["meta"]
+    assert meta["reporting_currency"] == "HKD"
+    assert meta["fx_status"] == "ok"
+    assert meta["hkd_total"] == 189370.5
+
+
+def test_aggregate_fx_unavailable(client, monkeypatch):
+    monkeypatch.setenv("FX_FORCE_STATUS", "unavailable")
+    headers = oauth_headers(client, customer_id="C001")
+    response = client.get("/aggregate/C001", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["meta"]["fx_status"] == "unavailable"
+    assert "accounts" in body
+    assert body["meta"]["hkd_total"] == 125000.5
+
+
+def test_aggregate_fx_stale(client, monkeypatch):
+    monkeypatch.setenv("FX_FORCE_STATUS", "stale")
+    headers = oauth_headers(client, customer_id="C001")
+    response = client.get("/aggregate/C001", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["meta"]["fx_status"] == "stale"
+    assert response.json()["meta"]["hkd_total"] == 189370.5
